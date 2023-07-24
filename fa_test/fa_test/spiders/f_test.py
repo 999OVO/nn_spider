@@ -5,6 +5,7 @@ import scrapy
 import re
 import random
 import json
+import pprint
 from lxml import etree
 from copy import deepcopy
 from scrapy.http import HtmlResponse
@@ -12,6 +13,7 @@ from HtmlCleaners import process_cleaned_data
 from scrapy.crawler import CrawlerProcess
 from scrapy.utils.project import get_project_settings
 from fake_useragent import UserAgent
+from selenium import webdriver
 
 
 class FTestSpider(scrapy.Spider):
@@ -67,11 +69,12 @@ class FTestSpider(scrapy.Spider):
             print(f"type_tuple:{type_tuple}")
             if type_tuple:
                 yield scrapy.Request(url=origin_url, headers=headers, callback=self.parse,
-                                     meta={'type_tuple': type_tuple, 'origin_url_index': origin_url_index},
-                                     dont_filter=True)
+                                     meta={'type_tuple': type_tuple, 'origin_url_index': origin_url_index,
+                                           'origin_url': origin_url}, dont_filter=True)
 
     def parse(self, response, **kwargs):
         type_tuple = response.meta['type_tuple']
+        origin_url = response.meta['origin_url']
         item = dict()
         item["delete_brand"] = ["fabrikstyle", "sexy", "free", "SALE", "Z Supply"]
         item['origin_url_index'] = response.meta['origin_url_index']
@@ -80,11 +83,24 @@ class FTestSpider(scrapy.Spider):
         for one_type_index, one_type in enumerate(type_tuple, 1):
             item[f"type_{one_type_index}"] = one_type
 
-        product_list = response.xpath('//*[@id="shopify-block-a7c7c6d6-5bab-46b0-85e0-5eb057d3ddcd"]/div/div/div[3]/div[2]/div[ @class="boost-sd__product-list boost-sd__product-list-grid--3-col boost-sd__product-list--margin"]/div') # //*[@id="7046421446714"]/div/a/div/div/div[1]/img[2]
+        driver = webdriver.Chrome()
+        driver.get(origin_url)
+        # driver.get("https://fabrikstyle.com/collections/dresses")
+        html_source = driver.page_source
+        html_source = etree.HTML(html_source)
+        product_list = html_source.xpath('//*[@id="shopify-block-a7c7c6d6-5bab-46b0-85e0-5eb057d3ddcd"]/div/div/div[3]/div[2]/div/div[1]/div')
+
+    # pprint.pprint(response.text) 可以先打印下响应数据查看有是否我们要定位的内容
+    # product_list = response.xpath('//*[@id="shopify-block-a7c7c6d6-5bab-46b0-85e0-5eb057d3ddcd"]/div/div/div[3]/div[2]/div[1]/div') 无法直接定位，推测是动态加载，用re直接定位到js
+    # product_list = re.findall(r'const collectionAllProducts = ([\s\S]*?)];', response.text)
+    # product_list = json.loads(product_list[0] + ',')
+    # pprint.pprint(product_list)
+
         print(f'----{type_tuple}----数据总量：{len(product_list)}')
 
         for ele in product_list:
-            item['details'] = response.urljoin(ele.xpath('//link[@rel="next"]/@href').extract_first())
+            item['details'] = 'https://fabrikstyle.com/' + ele.xpath('./div/a/@href')[0]
+            print(item['details'])
             yield scrapy.Request(url=item['details'], callback=self.parse_details,
                                  meta={'item': deepcopy(item)})
 
@@ -97,9 +113,9 @@ class FTestSpider(scrapy.Spider):
 
     def parse_details(self, response: HtmlResponse):
         item = response.meta['item']
-        # 利用正则表达式从js代码中定位到产品数据
-        product_data = re.findall(r'sgGlobalVars.currentProduct = ([\s\S]*)};', response.text)
-        product_data = json.loads(product_data[0] + '}')
+        tree = etree.HTML(response.text)
+        product_data = tree.xpath('//*[@id="shopify-section-template--14584073289786__main"]/div/script')[0].text
+        product_data = json.loads(product_data)
 
         product_title = product_data['title']
         flag = False
@@ -115,8 +131,9 @@ class FTestSpider(scrapy.Spider):
             return
 
         item["product_title"] = ' '.join(product_title.split(" ")[-1:])
-        item["description"] = response.xpath('//div[@id="tab1"]').extract_first()
-        p_desc = response.xpath('//div[@id="tab1"]/p[1]').extract_first()
+        item["description"] = tree.xpath('//div[@id="tab1"]//text()')
+        item["description"] = ' '.join(item["description"])
+        p_desc = ' '.join(tree.xpath('//div[@id="tab1"]/p[1]//text()'))
         item["description"] = item["description"].replace(p_desc, '')
 
         for ele in response.xpath('//div[@id="tab1"]/p').extract():

@@ -194,7 +194,8 @@ class Opencard_302s_Pipeline(object):
         new_csv = pd.read_csv(self.csv_file_handle.name, encoding='utf8')
         excel_path = self.csv_file_handle.name.replace('.csv', '.xlsx')
 
-        writer = pd.ExcelWriter(excel_path, engine='xlsxwriter', options={'strings_to_urls': False})
+        # writer = pd.ExcelWriter(excel_path, engine='xlsxwriter', options={'strings_to_urls': False})
+        writer = pd.ExcelWriter(excel_path, engine='xlsxwriter')
         new_csv.to_excel(writer, index=False, encoding='utf8')
         writer.save()
         writer.close()

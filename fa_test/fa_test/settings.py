@@ -55,10 +55,10 @@ COOKIES_ENABLED = False
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
-DOWNLOADER_MIDDLEWARES = {
-    'fa_test.middlewares.MyUserAgentMiddleware': 100,
-    'fa_test.middlewares.FaTestDownloaderMiddleware': 543,
-}
+# DOWNLOADER_MIDDLEWARES = {
+#     'fa_test.middlewares.MyUserAgentMiddleware': 100,
+#     'fa_test.middlewares.FaTestDownloaderMiddleware': 543,
+# }
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
